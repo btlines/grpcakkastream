@@ -50,13 +50,15 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
       .newline
       .add(
         "import _root_.akka.NotUsed",
-        "import _root_.akka.stream.scaladsl.{ Flow, Source }",
+        "import _root_.akka.stream.Materializer",
+        "import _root_.akka.stream.scaladsl.{ Flow, Sink, Source }",
         "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
         "import _root_.com.trueaccord.scalapb.grpc.{ AbstractService, Grpc, Marshaller, ServiceCompanion }",
         "import _root_.grpc.akkastreams.GrpcAkkaStreams._",
         "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
         "import _root_.io.grpc.stub.{ AbstractStub, ClientCalls, ServerCalls, StreamObserver }",
-        "import _root_.org.reactivestreams.{ Publisher, Subscriber }"
+        "import _root_.org.reactivestreams.{ Publisher, Subscriber }",
+        "import _root_.scala.util.{ Failure, Success }"
       )
       .newline
       .add(s"object $objectName {")
@@ -72,6 +74,8 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
           .call(serviceTraitCompanion(service, fileDesc))
           .newline
           .call(stub(service))
+          .newline
+          .call(bindService(service))
           .newline
           .add(s"def stub(channel: Channel): ${service.stub} = new ${service.stub}(channel)")
           .newline
@@ -212,9 +216,86 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
         .outdent
         .add("))")
         .outdent
-
     }
   }
+
+  private def bindService(service: ServiceDescriptor): PrinterEndo = _
+    .add(s"def bindService(serviceImpl: ${service.name})(implicit mat: Materializer): ServerServiceDefinition =")
+    .indent
+    .add("ServerServiceDefinition")
+    .indent
+    .add(s""".builder("${service.getFullName}")""")
+    .print(service.methods) { case (p, m) =>
+      p.call(addMethodImplementation(m))
+    }
+    .add(".build()")
+    .outdent
+    .outdent
+
+  private def addMethodImplementation(method: MethodDescriptor): PrinterEndo = { printer =>
+    val call = method.streamType match {
+      case StreamType.Unary => "ServerCalls.asyncUnaryCall"
+      case StreamType.ClientStreaming => "ServerCalls.asyncClientStreamingCall"
+      case StreamType.ServerStreaming => "ServerCalls.asyncServerStreamingCall"
+      case StreamType.Bidirectional => "ServerCalls.asyncBidiStreamingCall"
+    }
+    val serverMethod = method.streamType match {
+      case StreamType.Unary => s"ServerCalls.UnaryMethod[${method.scalaIn}, ${method.scalaOut}]"
+      case StreamType.ClientStreaming => s"ServerCalls.ClientStreamingMethod[${method.scalaIn}, ${method.scalaOut}]"
+      case StreamType.ServerStreaming => s"ServerCalls.ServerStreamingMethod[${method.scalaIn}, ${method.scalaOut}]"
+      case StreamType.Bidirectional => s"ServerCalls.BidiStreamingMethod[${method.scalaIn}, ${method.scalaOut}]"
+    }
+    val impl: PrinterEndo = method.streamType match {
+      case StreamType.ServerStreaming | StreamType.Unary => _
+        .add(s"override def invoke(request: ${method.scalaIn}, responseObserver: StreamObserver[${method.scalaOut}]) =")
+        .indent
+        .add("Source")
+        .indent
+        .add(
+          ".single(request)",
+          s".via(serviceImpl.${method.name})",
+          ".runForeach(responseObserver.onNext)",
+          ".onComplete {"
+        )
+        .addIndented(
+          "case Success(_) => responseObserver.onCompleted()",
+          "case Failure(t) => responseObserver.onError(t)"
+        )
+        .add("}(mat.executionContext)")
+        .outdent
+        .outdent
+      case StreamType.ClientStreaming | StreamType.Bidirectional => _
+        .add(s"override def invoke(responseObserver: StreamObserver[${method.scalaOut}]): StreamObserver[${method.scalaIn}] =")
+        .indent
+        .add(s"reactiveSubscriberToGrpcObserver(")
+        .indent
+        .add("serviceImpl")
+        .addIndented(
+          s".${method.name}",
+          ".to(Sink.fromSubscriber(grpcObserverToReactiveSubscriber(responseObserver)))",
+          s".runWith(Source.asSubscriber[${method.scalaIn}])"
+        )
+        .outdent
+        .add(")")
+        .outdent
+    }
+    printer
+      .add(".addMethod(")
+      .indent
+      .add(s"${method.descriptorName},")
+      .add(s"$call(")
+      .indent
+      .add(s"new $serverMethod {")
+      .indent
+      .call(impl)
+      .outdent
+      .add("}")
+      .outdent
+      .add(")")
+      .outdent
+      .add(")")
+  }
+
 
   private def javaDescriptor(service: ServiceDescriptor): PrinterEndo = { printer =>
     printer

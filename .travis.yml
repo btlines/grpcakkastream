@@ -1,0 +1,8 @@
+dist: trusty
+language: scala
+jdk: openjdk8
+
+script:
+- sbt ++2.10.6 generator/compile
+- sbt ++2.12.3 runtime/compile
+- test $TRAVIS_PULL_REQUEST = false && sbt updateImpactSubmit || true

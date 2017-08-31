@@ -58,6 +58,8 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
         "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
         "import _root_.io.grpc.stub.{ AbstractStub, ClientCalls, ServerCalls, StreamObserver }",
         "import _root_.org.reactivestreams.{ Publisher, Subscriber }",
+        "import _root_.scala.concurrent.Await",
+        "import _root_.scala.concurrent.duration._",
         "import _root_.scala.util.{ Failure, Success }"
       )
       .newline
@@ -265,19 +267,26 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
         .outdent
         .outdent
       case StreamType.ClientStreaming | StreamType.Bidirectional => _
-        .add(s"override def invoke(responseObserver: StreamObserver[${method.scalaOut}]): StreamObserver[${method.scalaIn}] =")
-        .indent
-        .add(s"reactiveSubscriberToGrpcObserver(")
-        .indent
-        .add("serviceImpl")
-        .addIndented(
-          s".${method.name}",
-          ".to(Sink.fromSubscriber(grpcObserverToReactiveSubscriber(responseObserver)))",
-          s".runWith(Source.asSubscriber[${method.scalaIn}])"
-        )
-        .outdent
-        .add(")")
-        .outdent
+          .add("override def invoke(")
+          .addIndented(s"responseObserver: StreamObserver[${method.scalaOut}]")
+          .add(s"): StreamObserver[${method.scalaIn}] =")
+          .indent
+          .add(
+            "// blocks until the GraphStage is fully initialized",
+            "Await.result("
+          )
+          .indent
+          .add("Source")
+          .addIndented(
+            s".fromGraph(new GrpcSourceStage[${method.scalaIn}])",
+            s".via(serviceImpl.${method.name})",
+            ".to(Sink.fromSubscriber(grpcObserverToReactiveSubscriber(responseObserver)))",
+            ".run(),"
+          )
+          .add("5.seconds")
+          .outdent
+          .add(")")
+          .outdent
     }
     printer
       .add(".addMethod(")

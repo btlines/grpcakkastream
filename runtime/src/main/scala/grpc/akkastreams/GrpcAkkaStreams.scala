@@ -1,9 +1,11 @@
 package grpc.akkastreams
 
 import akka.stream._
-import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
+import akka.stream.stage._
 import io.grpc.stub.StreamObserver
-import org.reactivestreams.{Publisher, Subscriber, Subscription}
+import org.reactivestreams.{ Subscriber, Subscription }
+
+import scala.concurrent.{Future, Promise}
 
 object GrpcAkkaStreams {
 
@@ -12,7 +14,6 @@ object GrpcAkkaStreams {
   class GrpcGraphStage[I, O](operator: GrpcOperator[I, O]) extends GraphStage[FlowShape[I, O]] {
     val in = Inlet[I]("grpc.in")
     val out = Outlet[O]("grpc.out")
-
     override val shape: FlowShape[I, O] = FlowShape.of(in, out)
     override def createLogic(inheritedAttributes: Attributes): GraphStageLogic =
       new GraphStageLogic(shape) {
@@ -40,6 +41,28 @@ object GrpcAkkaStreams {
       }
   }
 
+  class GrpcSourceStage[O] extends GraphStageWithMaterializedValue[SourceShape[O], Future[StreamObserver[O]]] {
+    val out = Outlet[O]("grpc.out")
+    override val shape: SourceShape[O] = SourceShape.of(out)
+    override def createLogicAndMaterializedValue(
+      inheritedAttributes: Attributes
+    ): (GraphStageLogic, Future[StreamObserver[O]]) = {
+      val promise: Promise[StreamObserver[O]] = Promise()
+      val logic = new GraphStageLogic(shape) {
+        val observer = new StreamObserver[O] {
+          override def onError(t: Throwable) = fail(out, t)
+          override def onCompleted() = getAsyncCallback((_: Unit) => complete(out)).invoke(())
+          override def onNext(value: O) = getAsyncCallback((value: O) => emit(out, value)).invoke(value)
+        }
+        setHandler(out, new OutHandler {
+          override def onPull(): Unit = ()
+        })
+        override def preStart(): Unit = promise.success(observer)
+      }
+      (logic, promise.future)
+    }
+  }
+
   def reactiveSubscriberToGrpcObserver[T](subscriber: Subscriber[_ >: T]): StreamObserver[T] =
     new StreamObserver[T] {
       override def onError(t: Throwable): Unit = subscriber.onError(t)
@@ -49,10 +72,18 @@ object GrpcAkkaStreams {
 
   def grpcObserverToReactiveSubscriber[T](observer: StreamObserver[T]): Subscriber[T] =
     new Subscriber[T] {
+      var subscription: Subscription = _
       override def onError(t: Throwable) = observer.onError(t)
       override def onComplete() = observer.onCompleted()
-      override def onNext(value: T) = observer.onNext(value)
-      override def onSubscribe(s: Subscription) = ()
+      override def onNext(value: T) = {
+        observer.onNext(value)
+        pull()
+      }
+      override def onSubscribe(s: Subscription) = {
+        subscription = s
+        pull()
+      }
+      private def pull(): Unit = subscription.request(1)
     }
 
 }

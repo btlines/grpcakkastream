@@ -168,26 +168,30 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
       case ServerStreaming => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"Flow[${method.scalaIn}].flatMapConcat(request =>")
+        .add(s"Flow.fromGraph(")
         .indent
-        .add("Source.fromPublisher(")
+        .add(s"new GrpcGraphStage[${method.scalaIn}, ${method.scalaOut}]({ outputObserver =>")
         .indent
-        .add(s"new Publisher[${method.scalaOut}] {")
+        .add(s"new StreamObserver[${method.scalaIn}] {")
         .indent
-        .add(s"override def subscribe(subscriber: Subscriber[_ >: ${method.scalaOut}]): Unit =")
+        .add(
+          "override def onError(t: Throwable): Unit = ()",
+          "override def onCompleted(): Unit = ()",
+          s"override def onNext(request: ${method.scalaIn}): Unit ="
+        )
         .indent
         .add("ClientCalls.asyncServerStreamingCall(")
         .addIndented(
           s"channel.newCall(${method.descriptorName}, options),",
           "request,",
-          s"reactiveSubscriberToGrpcObserver[${method.scalaOut}](subscriber)"
+          "outputObserver"
         )
         .add(")")
         .outdent
         .outdent
         .add("}")
         .outdent
-        .add(")")
+        .add("})")
         .outdent
         .add(")")
       case ClientStreaming => printer

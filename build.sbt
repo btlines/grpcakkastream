@@ -1,6 +1,6 @@
 lazy val commonSettings = Seq(
   organization := "beyondthelines",
-  version := "0.0.1",
+  version := "0.0.2",
   licenses := ("MIT", url("http://opensource.org/licenses/MIT")) :: Nil,
   bintrayOrganization := Some("beyondthelines"),
   bintrayPackageLabels := Seq("scala", "protobuf", "grpc", "akka")

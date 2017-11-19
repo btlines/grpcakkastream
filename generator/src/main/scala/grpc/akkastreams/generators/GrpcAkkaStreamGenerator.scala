@@ -3,23 +3,23 @@ package grpc.akkastreams.generators
 import com.google.protobuf.Descriptors._
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.compiler.PluginProtos.{CodeGeneratorRequest, CodeGeneratorResponse}
-import com.trueaccord.scalapb.Scalapb
 import com.trueaccord.scalapb.compiler.FunctionalPrinter.PrinterEndo
 import com.trueaccord.scalapb.compiler.StreamType.{Bidirectional, ClientStreaming, ServerStreaming, Unary}
-import com.trueaccord.scalapb.compiler.{DescriptorPimps, FunctionalPrinter, StreamType}
+import com.trueaccord.scalapb.compiler.{DescriptorPimps, FunctionalPrinter, ProtobufGenerator, StreamType}
 
 import scala.collection.JavaConverters._
+import scalapbshade.v0_6_6.com.trueaccord.scalapb.Scalapb
 
 object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with DescriptorPimps {
-  // Read scalapb.options (if present) in .proto files
-  override def registerExtensions(registry: ExtensionRegistry): Unit = {
-    Scalapb.registerAllExtensions(registry)
-  }
-
   val params = com.trueaccord.scalapb.compiler.GeneratorParams()
 
-  def run(request: CodeGeneratorRequest): CodeGeneratorResponse = {
+  override def run(requestBytes: Array[Byte]): Array[Byte] = {
+    // Read scalapb.options (if present) in .proto files
+    val registry = ExtensionRegistry.newInstance()
+    Scalapb.registerAllExtensions(registry)
+
     val b = CodeGeneratorResponse.newBuilder
+    val request = CodeGeneratorRequest.parseFrom(requestBytes, registry)
 
     val fileDescByName: Map[String, FileDescriptor] =
       request.getProtoFileList.asScala.foldLeft[Map[String, FileDescriptor]](Map.empty) {
@@ -34,7 +34,7 @@ object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with Des
         val responseFile = generateFile(fileDesc)
         b.addFile(responseFile)
     }
-    b.build
+    b.build.toByteArray
   }
 
   def generateFile(fileDesc: FileDescriptor): CodeGeneratorResponse.File = {

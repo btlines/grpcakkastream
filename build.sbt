@@ -12,7 +12,7 @@ lazy val runtime = (project in file("runtime"))
     crossScalaVersions := Seq("2.12.4", "2.11.11"),
     name := "GrpcAkkaStreamRuntime",
     libraryDependencies ++= Seq(
-      "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % "0.6.6",
+      "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % "0.6.7",
       "com.typesafe.akka"      %% "akka-stream"          % "2.5.4"
     )
   )
@@ -22,7 +22,7 @@ lazy val generator = (project in file("generator"))
     crossScalaVersions := Seq("2.12.4", "2.10.6"),
     name := "GrpcAkkaStreamGenerator",
     libraryDependencies ++= Seq(
-      "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.6",
-      "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % "0.6.6"
+      "com.trueaccord.scalapb" %% "compilerplugin" % "0.6.7",
+      "com.trueaccord.scalapb" %% "scalapb-runtime-grpc" % "0.6.7"
     )
   )

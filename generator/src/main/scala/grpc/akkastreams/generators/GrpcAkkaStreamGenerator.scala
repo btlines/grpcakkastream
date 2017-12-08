@@ -5,13 +5,21 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.compiler.PluginProtos.{CodeGeneratorRequest, CodeGeneratorResponse}
 import com.trueaccord.scalapb.compiler.FunctionalPrinter.PrinterEndo
 import com.trueaccord.scalapb.compiler.StreamType.{Bidirectional, ClientStreaming, ServerStreaming, Unary}
-import com.trueaccord.scalapb.compiler.{DescriptorPimps, FunctionalPrinter, ProtobufGenerator, StreamType}
+import com.trueaccord.scalapb.compiler._
 
 import scala.collection.JavaConverters._
-import scalapbshade.v0_6_6.com.trueaccord.scalapb.Scalapb
+import scalapbshade.v0_6_7.com.trueaccord.scalapb.Scalapb
 
-object GrpcAkkaStreamGenerator extends protocbridge.ProtocCodeGenerator with DescriptorPimps {
-  val params = com.trueaccord.scalapb.compiler.GeneratorParams()
+object GrpcAkkaStreamGenerator {
+  def apply(flatPackage: Boolean = false): GrpcAkkaStreamGenerator = {
+    val params = GeneratorParams().copy(flatPackage = flatPackage)
+    new GrpcAkkaStreamGenerator(params)
+  }
+}
+
+class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
+  extends protocbridge.ProtocCodeGenerator
+  with DescriptorPimps {
 
   override def run(requestBytes: Array[Byte]): Array[Byte] = {
     // Read scalapb.options (if present) in .proto files

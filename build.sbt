@@ -1,5 +1,5 @@
 organization in ThisBuild := "beyondthelines"
-version in ThisBuild := "0.0.4"
+version in ThisBuild := "0.0.5-SNAPSHOT"
 bintrayOrganization in ThisBuild := Some(sys.props.get("bintray.organization").getOrElse("beyondthelines"))
 bintrayRepository in ThisBuild := "maven"
 bintrayPackageLabels in ThisBuild := Seq("scala", "protobuf", "grpc", "akka")

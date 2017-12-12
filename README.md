@@ -24,7 +24,7 @@ resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
 libraryDependencies ++= Seq(
   "com.trueaccord.scalapb" %% "compilerplugin"          % "0.6.6",
-  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.4"
+  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.5"
 )
 ```
 
@@ -42,7 +42,7 @@ PB.targets in Compile := Seq(
 
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
-libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.0.4"
+libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.0.5"
 ```
 
 ### Usage

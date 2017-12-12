@@ -61,7 +61,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
         "import _root_.akka.stream.Materializer",
         "import _root_.akka.stream.scaladsl.{ Flow, Sink, Source }",
         "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
-        "import _root_.com.trueaccord.scalapb.grpc.{ AbstractService, Grpc, Marshaller, ServiceCompanion }",
+        "import _root_.com.trueaccord.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Grpc, Marshaller, ServiceCompanion }",
         "import _root_.grpc.akkastreams.GrpcAkkaStreams._",
         "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
         "import _root_.io.grpc.stub.{ AbstractStub, ClientCalls, ServerCalls, StreamObserver }",
@@ -78,6 +78,8 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
           .print(service.getMethods.asScala) {
             case (p, m) => p.call(serviceMethodDescriptor(m))
           }
+          .newline
+          .call(serviceDescriptor(service))
           .newline
           .call(serviceTrait(service))
           .newline
@@ -109,16 +111,26 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
     printer
       .add(s"val ${method.descriptorName}: MethodDescriptor[${method.scalaIn}, ${method.scalaOut}] =")
       .indent
-      .add("MethodDescriptor.create(")
-      .indent
-      .add(s"MethodDescriptor.MethodType.$methodType,")
-      .add(s"""MethodDescriptor.generateFullMethodName("${method.getService.getFullName}", "${method.getName}"),""")
-      .add(s"new Marshaller(${method.scalaIn}),")
-      .add(s"new Marshaller(${method.scalaOut})")
-      .outdent
-      .add(")")
+      .add("MethodDescriptor.newBuilder()")
+      .addIndented(
+        s".setType(MethodDescriptor.MethodType.$methodType)",
+        s""".setFullMethodName(MethodDescriptor.generateFullMethodName("${method.getService.getFullName}", "${method.getName}"))""",
+        s".setRequestMarshaller(new Marshaller(${method.scalaIn}))",
+        s".setResponseMarshaller(new Marshaller(${method.scalaOut}))",
+        ".build()"
+      )
       .outdent
   }
+
+  private def serviceDescriptor(service: ServiceDescriptor): PrinterEndo =
+    _.add(s"""val SERVICE: _root_.io.grpc.ServiceDescriptor = _root_.io.grpc.ServiceDescriptor.newBuilder("${service.getFullName}")""")
+      .indent
+      .add(s".setSchemaDescriptor(new ConcreteProtoFileDescriptorSupplier(${service.getFile.fileDescriptorObjectFullName}.javaDescriptor))")
+      .print(service.methods) { case (printer, method) =>
+        printer.add(s".addMethod(${method.descriptorName})")
+      }
+      .add(".build()")
+      .outdent
 
   private def serviceTrait(service: ServiceDescriptor): PrinterEndo = _
     .add(s"trait ${service.getName} extends AbstractService {")

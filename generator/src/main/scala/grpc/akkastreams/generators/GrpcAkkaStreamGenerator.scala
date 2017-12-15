@@ -250,7 +250,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
     .indent
     .add("ServerServiceDefinition")
     .indent
-    .add(s""".builder("${service.getFullName}")""")
+    .add(".builder(SERVICE)")
     .print(service.methods) { case (p, m) =>
       p.call(addMethodImplementation(m))
     }

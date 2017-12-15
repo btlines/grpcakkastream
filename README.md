@@ -23,8 +23,8 @@ addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.12")
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
 libraryDependencies ++= Seq(
-  "com.trueaccord.scalapb" %% "compilerplugin"          % "0.6.6",
-  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.5"
+  "com.trueaccord.scalapb" %% "compilerplugin"          % "0.6.7",
+  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.6"
 )
 ```
 
@@ -42,7 +42,7 @@ PB.targets in Compile := Seq(
 
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
-libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.0.5"
+libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.0.6"
 ```
 
 ### Usage
@@ -121,4 +121,3 @@ Source(
   .via(stub.routeChat)
   .runForeach(println)
 ```
-

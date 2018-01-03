@@ -37,7 +37,7 @@ PB.targets in Compile := Seq(
   // compile your proto files into scala source files
   scalapb.gen() -> (sourceManaged in Compile).value,
   // generate the GRPC Akka stream source code
-  grpc.akkastreams.generators.GrpcAkkaStreamGenerator -> (sourceManaged in Compile).value
+  grpc.akkastreams.generators.GrpcAkkaStreamGenerator() -> (sourceManaged in Compile).value
 )
 
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")

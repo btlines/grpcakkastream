@@ -39,66 +39,62 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
     request.getFileToGenerateList.asScala.foreach {
       name =>
         val fileDesc = fileDescByName(name)
-        val responseFile = generateFile(fileDesc)
-        b.addFile(responseFile)
+        val responseFiles = generateFiles(fileDesc)
+        b.addAllFile(responseFiles.asJava)
     }
     b.build.toByteArray
   }
 
-  def generateFile(fileDesc: FileDescriptor): CodeGeneratorResponse.File = {
-    val b = CodeGeneratorResponse.File.newBuilder()
+  def generateFiles(fileDesc: FileDescriptor): Seq[CodeGeneratorResponse.File] = {
+    fileDesc.getServices.asScala.map { service =>
+      val b = CodeGeneratorResponse.File.newBuilder()
+      val objectName = s"${service.objectName}AkkaStream"
+      b.setName(s"${fileDesc.scalaDirectory}/$objectName.scala")
 
-    val objectName = fileDesc
-      .fileDescriptorObjectName
-      .substring(0, fileDesc.fileDescriptorObjectName.length - 5) + "GrpcAkkaStream"
+      val fp = FunctionalPrinter()
+        .add(s"package ${fileDesc.scalaPackageName}")
+        .newline
+        .add(
+          "import _root_.akka.NotUsed",
+          "import _root_.akka.stream.Materializer",
+          "import _root_.akka.stream.scaladsl.{ Flow, Sink, Source }",
+          "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
+          "import _root_.com.trueaccord.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Grpc, Marshaller, ServiceCompanion }",
+          "import _root_.grpc.akkastreams.GrpcAkkaStreams._",
+          "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
+          "import _root_.io.grpc.stub.{ AbstractStub, ClientCalls, ServerCalls, StreamObserver }",
+          "import _root_.org.reactivestreams.{ Publisher, Subscriber }",
+          "import _root_.scala.concurrent.Await",
+          "import _root_.scala.concurrent.duration._",
+          "import _root_.scala.util.{ Failure, Success }"
+        )
+        .newline
+        .add(s"object $objectName {")
+        .indent
+        .print(service.getMethods.asScala) {
+          case (p, m) => p.call(serviceMethodDescriptor(m))
+        }
+        .newline
+        .call(serviceDescriptor(service))
+        .newline
+        .call(serviceTrait(service))
+        .newline
+        .call(serviceTraitCompanion(service, fileDesc))
+        .newline
+        .call(stub(service))
+        .newline
+        .call(bindService(service))
+        .newline
+        .add(s"def stub(channel: Channel): ${service.stub} = new ${service.stub}(channel)")
+        .newline
+        .call(javaDescriptor(service))
+        .outdent
+        .add("}")
+        .newline
 
-    b.setName(s"${fileDesc.scalaDirectory}/$objectName.scala")
-    val fp = FunctionalPrinter()
-      .add(s"package ${fileDesc.scalaPackageName}")
-      .newline
-      .add(
-        "import _root_.akka.NotUsed",
-        "import _root_.akka.stream.Materializer",
-        "import _root_.akka.stream.scaladsl.{ Flow, Sink, Source }",
-        "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
-        "import _root_.com.trueaccord.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Grpc, Marshaller, ServiceCompanion }",
-        "import _root_.grpc.akkastreams.GrpcAkkaStreams._",
-        "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
-        "import _root_.io.grpc.stub.{ AbstractStub, ClientCalls, ServerCalls, StreamObserver }",
-        "import _root_.org.reactivestreams.{ Publisher, Subscriber }",
-        "import _root_.scala.concurrent.Await",
-        "import _root_.scala.concurrent.duration._",
-        "import _root_.scala.util.{ Failure, Success }"
-      )
-      .newline
-      .add(s"object $objectName {")
-      .indent
-      .print(fileDesc.getServices.asScala) {
-        case (printer, service) => printer
-          .print(service.getMethods.asScala) {
-            case (p, m) => p.call(serviceMethodDescriptor(m))
-          }
-          .newline
-          .call(serviceDescriptor(service))
-          .newline
-          .call(serviceTrait(service))
-          .newline
-          .call(serviceTraitCompanion(service, fileDesc))
-          .newline
-          .call(stub(service))
-          .newline
-          .call(bindService(service))
-          .newline
-          .add(s"def stub(channel: Channel): ${service.stub} = new ${service.stub}(channel)")
-          .newline
-          .call(javaDescriptor(service))
-      }
-      .outdent
-      .add("}")
-      .newline
-
-    b.setContent(fp.result)
-    b.build
+      b.setContent(fp.result)
+      b.build
+    }
   }
 
   private def serviceMethodDescriptor(method: MethodDescriptor): PrinterEndo = { printer =>

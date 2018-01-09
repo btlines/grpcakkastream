@@ -136,8 +136,17 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
     .outdent
     .add("}")
 
+  private def methodName(method: MethodDescriptor): String = {
+    // These five methods are defined in `AnyRef` and will cause a name clash if
+    // we do not rename them.
+    if (Seq("clone", "finalize", "notify", "notifyAll", "wait") contains method.name)
+      s"${method.name}_ "
+    else
+      method.name
+  }
+
   private def serviceMethodSignature(method: MethodDescriptor): String =
-    s"def ${method.name}: Flow[${method.scalaIn}, ${method.scalaOut}, NotUsed]"
+    s"def ${methodName(method)}: Flow[${method.scalaIn}, ${method.scalaOut}, NotUsed]"
 
   private def serviceTraitCompanion(service: ServiceDescriptor, fileDesc: FileDescriptor): PrinterEndo = _
       .add(s"object ${service.getName} extends ServiceCompanion[${service.getName}] {")
@@ -276,7 +285,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
         .indent
         .add(
           ".single(request)",
-          s".via(serviceImpl.${method.name})",
+          s".via(serviceImpl.${methodName(method)})",
           ".runForeach(responseObserver.onNext)",
           ".onComplete {"
         )
@@ -300,7 +309,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
           .add("Source")
           .addIndented(
             s".fromGraph(new GrpcSourceStage[${method.scalaIn}])",
-            s".via(serviceImpl.${method.name})",
+            s".via(serviceImpl.${methodName(method)})",
             ".to(Sink.fromSubscriber(grpcObserverToReactiveSubscriber(responseObserver)))",
             ".run(),"
           )

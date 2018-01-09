@@ -210,6 +210,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
         .add("})")
         .outdent
         .add(")")
+        .outdent
       case ClientStreaming => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent

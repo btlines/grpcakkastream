@@ -24,7 +24,7 @@ resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
 libraryDependencies ++= Seq(
   "com.trueaccord.scalapb" %% "compilerplugin"          % "0.6.7",
-  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.6"
+  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.7"
 )
 ```
 
@@ -42,7 +42,7 @@ PB.targets in Compile := Seq(
 
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
-libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.0.6"
+libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.0.7"
 ```
 
 ### Usage
@@ -51,7 +51,7 @@ You're now ready to implement your GRPC service using Akka-streams Flow.
 
 To implement your service's business logic you simply extend the GRPCAkkaStream generated trait.
 
-E.g. for the RouteGuide service: 
+E.g. for the RouteGuide service:
 
 ```scala
 class RouteGuideAkkaStreamService(features: Seq[Feature]) extends RouteGuideGrpcAkkaStream.RouteGuide {
@@ -78,7 +78,7 @@ val server = ServerBuilder
       new RouteGuideAkkaStreamService(features) // the service implemented above
     )
   )
-  .build()    
+  .build()
 ```
 
 Akka-streams' Flows are also available on the client side:

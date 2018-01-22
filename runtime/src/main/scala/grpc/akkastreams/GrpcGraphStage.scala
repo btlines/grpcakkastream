@@ -33,7 +33,7 @@ class GrpcGraphStage[I, O](operator: GrpcOperator[I, O]) extends GraphStage[Flow
           getAsyncCallback((_: Unit) => complete(out)).invoke(())
 
         override def onNext(value: O) =
-          getAsyncCallback((value: O) => emit(out, value)).invoke(value)
+          getAsyncCallback((value: O) => push(out, value)).invoke(value)
 
         override def run(): Unit = requestStream.get().foreach { reqStream =>
           if (requested.compareAndSet(true, false)) reqStream.request(1)

@@ -25,7 +25,7 @@ class GrpcSourceStage[I, O](requestStream: CallStreamObserver[O])
           getAsyncCallback((_: Unit) => complete(out)).invoke(())
 
         override def onNext(value: I) =
-          getAsyncCallback((value: I) => emit(out, value)).invoke(value)
+          getAsyncCallback((value: I) => push(out, value)).invoke(value)
       }
 
       override def onPull(): Unit = requestStream.request(1)

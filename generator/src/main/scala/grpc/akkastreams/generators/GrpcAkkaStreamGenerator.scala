@@ -3,12 +3,12 @@ package grpc.akkastreams.generators
 import com.google.protobuf.Descriptors._
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.compiler.PluginProtos.{CodeGeneratorRequest, CodeGeneratorResponse}
-import com.trueaccord.scalapb.compiler.FunctionalPrinter.PrinterEndo
-import com.trueaccord.scalapb.compiler.StreamType.{Bidirectional, ClientStreaming, ServerStreaming, Unary}
-import com.trueaccord.scalapb.compiler._
+import scalapb.compiler.FunctionalPrinter.PrinterEndo
+import scalapb.compiler.StreamType.{Bidirectional, ClientStreaming, ServerStreaming, Unary}
+import scalapb.compiler._
+import scalapb.options.compiler.Scalapb
 
 import scala.collection.JavaConverters._
-import scalapbshade.v0_6_7.com.trueaccord.scalapb.Scalapb
 
 object GrpcAkkaStreamGenerator {
   def apply(flatPackage: Boolean = false): GrpcAkkaStreamGenerator = {
@@ -59,7 +59,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
           "import _root_.akka.stream.Materializer",
           "import _root_.akka.stream.scaladsl.Flow",
           "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
-          "import _root_.com.trueaccord.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Marshaller, ServiceCompanion }",
+          "import _root_.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Grpc, Marshaller, ServiceCompanion }",
           "import _root_.grpc.akkastreams._",
           "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
           "import _root_.io.grpc.stub.AbstractStub"

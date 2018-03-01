@@ -18,12 +18,14 @@ You need to enable [`sbt-protoc`](https://github.com/thesamet/sbt-protoc) plugin
 You can do it by adding a `protoc.sbt` file into your `project` folder with the following lines:
 
 ```scala
-addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.12")
+import scalapb.compiler.Version.{grpcJavaVersion, scalapbVersion}
+addSbtPlugin("com.thesamet" % "sbt-protoc" % "0.99.17")
 
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
 libraryDependencies ++= Seq(
-  "com.trueaccord.scalapb" %% "compilerplugin"          % "0.6.7",
+  "com.thesamet.scalapb"   %% "compilerplugin"          % scalapbVersion,
+  "io.grpc"                %  "grpc-netty"              % grpcJavaVersion,
   "beyondthelines"         %% "grpcakkastreamgenerator" % "0.0.8"
 )
 ```

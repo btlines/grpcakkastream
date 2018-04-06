@@ -57,16 +57,12 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
         .add(
           "import _root_.akka.NotUsed",
           "import _root_.akka.stream.Materializer",
-          "import _root_.akka.stream.scaladsl.{ Flow, Sink, Source }",
+          "import _root_.akka.stream.scaladsl.Flow",
           "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
           "import _root_.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Grpc, Marshaller, ServiceCompanion }",
-          "import _root_.grpc.akkastreams.GrpcAkkaStreams._",
+          "import _root_.grpc.akkastreams._",
           "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
-          "import _root_.io.grpc.stub.{ AbstractStub, ClientCalls, ServerCalls, StreamObserver }",
-          "import _root_.org.reactivestreams.{ Publisher, Subscriber }",
-          "import _root_.scala.concurrent.Await",
-          "import _root_.scala.concurrent.duration._",
-          "import _root_.scala.util.{ Failure, Success }"
+          "import _root_.io.grpc.stub.AbstractStub"
         )
         .newline
         .add(s"object $objectName {")
@@ -178,75 +174,30 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
       case Unary => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"Flow[${method.scalaIn}].flatMapConcat(request =>")
-        .indent
-        .add("Source.fromFuture(")
-        .indent
-        .add("Grpc.guavaFuture2ScalaFuture(")
-        .addIndented(s"ClientCalls.futureUnaryCall(channel.newCall(${method.descriptorName}, options), request)")
-        .add(")")
-        .outdent
-        .add(")")
-        .outdent
+        .add(s"GrpcAkkaStreamsClientCalls.unaryFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
         .outdent
       case ServerStreaming => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"Flow.fromGraph(")
-        .indent
-        .add(s"new GrpcGraphStage[${method.scalaIn}, ${method.scalaOut}]({ outputObserver =>")
-        .indent
-        .add(s"new StreamObserver[${method.scalaIn}] {")
-        .indent
-        .add(
-          "override def onError(t: Throwable): Unit = ()",
-          "override def onCompleted(): Unit = ()",
-          s"override def onNext(request: ${method.scalaIn}): Unit ="
-        )
-        .indent
-        .add("ClientCalls.asyncServerStreamingCall(")
-        .addIndented(
-          s"channel.newCall(${method.descriptorName}, options),",
-          "request,",
-          "outputObserver"
-        )
-        .add(")")
-        .outdent
-        .outdent
-        .add("}")
-        .outdent
-        .add("})")
-        .outdent
+        .add(s"GrpcAkkaStreamsClientCalls.serverStreamingFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
         .outdent
       case ClientStreaming => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"Flow.fromGraph(new GrpcGraphStage[${method.scalaIn}, ${method.scalaOut}](outputObserver =>")
-        .indent
-        .add("ClientCalls.asyncClientStreamingCall(")
-        .addIndented(
-          s"channel.newCall(${method.descriptorName}, options),",
-          "outputObserver"
-        )
+        .add(s"GrpcAkkaStreamsClientCalls.clientStreamingFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
-        .outdent
-        .add("))")
         .outdent
       case Bidirectional => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"Flow.fromGraph(new GrpcGraphStage[${method.scalaIn}, ${method.scalaOut}](outputObserver =>")
-        .indent
-        .add("ClientCalls.asyncBidiStreamingCall(")
-        .addIndented(
-          s"channel.newCall(${method.descriptorName}, options),",
-          "outputObserver"
-        )
+        .add(s"GrpcAkkaStreamsClientCalls.bidiStreamingFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
-        .outdent
-        .add("))")
         .outdent
     }
   }
@@ -266,72 +217,17 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
 
   private def addMethodImplementation(method: MethodDescriptor): PrinterEndo = { printer =>
     val call = method.streamType match {
-      case StreamType.Unary => "ServerCalls.asyncUnaryCall"
-      case StreamType.ClientStreaming => "ServerCalls.asyncClientStreamingCall"
-      case StreamType.ServerStreaming => "ServerCalls.asyncServerStreamingCall"
-      case StreamType.Bidirectional => "ServerCalls.asyncBidiStreamingCall"
-    }
-    val serverMethod = method.streamType match {
-      case StreamType.Unary => s"ServerCalls.UnaryMethod[${method.scalaIn}, ${method.scalaOut}]"
-      case StreamType.ClientStreaming => s"ServerCalls.ClientStreamingMethod[${method.scalaIn}, ${method.scalaOut}]"
-      case StreamType.ServerStreaming => s"ServerCalls.ServerStreamingMethod[${method.scalaIn}, ${method.scalaOut}]"
-      case StreamType.Bidirectional => s"ServerCalls.BidiStreamingMethod[${method.scalaIn}, ${method.scalaOut}]"
-    }
-    val impl: PrinterEndo = method.streamType match {
-      case StreamType.ServerStreaming | StreamType.Unary => _
-        .add(s"override def invoke(request: ${method.scalaIn}, responseObserver: StreamObserver[${method.scalaOut}]) =")
-        .indent
-        .add("Source")
-        .indent
-        .add(
-          ".single(request)",
-          s".via(serviceImpl.${methodName(method)})",
-          ".runForeach(responseObserver.onNext)",
-          ".onComplete {"
-        )
-        .addIndented(
-          "case Success(_) => responseObserver.onCompleted()",
-          "case Failure(t) => responseObserver.onError(t)"
-        )
-        .add("}(mat.executionContext)")
-        .outdent
-        .outdent
-      case StreamType.ClientStreaming | StreamType.Bidirectional => _
-          .add("override def invoke(")
-          .addIndented(s"responseObserver: StreamObserver[${method.scalaOut}]")
-          .add(s"): StreamObserver[${method.scalaIn}] =")
-          .indent
-          .add(
-            "// blocks until the GraphStage is fully initialized",
-            "Await.result("
-          )
-          .indent
-          .add("Source")
-          .addIndented(
-            s".fromGraph(new GrpcSourceStage[${method.scalaIn}])",
-            s".via(serviceImpl.${methodName(method)})",
-            ".to(Sink.fromSubscriber(grpcObserverToReactiveSubscriber(responseObserver)))",
-            ".run(),"
-          )
-          .add("5.seconds")
-          .outdent
-          .add(")")
-          .outdent
+      case StreamType.Unary => s"GrpcAkkaStreamsServerCalls.unaryCall(serviceImpl.${methodName(method)})"
+      case StreamType.ClientStreaming => s"GrpcAkkaStreamsServerCalls.clientStreamingCall(serviceImpl.${methodName(method)})"
+      case StreamType.ServerStreaming => s"GrpcAkkaStreamsServerCalls.serverStreamingCall(serviceImpl.${methodName(method)})"
+      case StreamType.Bidirectional => s"GrpcAkkaStreamsServerCalls.bidiStreamingCall(serviceImpl.${methodName(method)})"
     }
     printer
       .add(".addMethod(")
-      .indent
-      .add(s"${method.descriptorName},")
-      .add(s"$call(")
-      .indent
-      .add(s"new $serverMethod {")
-      .indent
-      .call(impl)
-      .outdent
-      .add("}")
-      .outdent
-      .add(")")
-      .outdent
+      .addIndented(
+        s"${method.descriptorName},",
+        s"$call"
+      )
       .add(")")
   }
 

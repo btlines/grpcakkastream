@@ -28,7 +28,10 @@ object GrpcAkkaStreamsClientCalls {
           val onReadyHandler = new AtomicReference[Option[Runnable]](None)
           val listener = new ClientCall.Listener[O] {
             override def onClose(status: Status, trailers: Metadata): Unit =
-              out.onCompleted()
+              status.getCode match {
+                case Status.Code.OK => out.onCompleted()
+                case _ => out.onError(status.asException(trailers))
+              }
             override def onMessage(message: O): Unit =
               out.onNext(message)
             override def onReady(): Unit =

@@ -26,7 +26,7 @@ resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 libraryDependencies ++= Seq(
   "com.thesamet.scalapb"   %% "compilerplugin"          % scalapbVersion,
   "io.grpc"                %  "grpc-netty"              % grpcJavaVersion,
-  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.1.0"
+  "beyondthelines"         %% "grpcakkastreamgenerator" % "0.1.1"
 )
 ```
 
@@ -44,7 +44,7 @@ PB.targets in Compile := Seq(
 
 resolvers += Resolver.bintrayRepo("beyondthelines", "maven")
 
-libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.1.0"
+libraryDependencies += "beyondthelines" %% "grpcakkastreamruntime" % "0.1.1"
 ```
 
 ### Usage

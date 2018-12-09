@@ -15,7 +15,7 @@ lazy val runtime = (project in file("runtime"))
     name := "GrpcAkkaStreamRuntime",
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb"   %% "scalapb-runtime-grpc" % scalapbVersion,
-      "com.typesafe.akka"      %% "akka-stream"          % "2.5.9"
+      "com.typesafe.akka"      %% "akka-stream"          % "2.5.19"
     )
   )
 

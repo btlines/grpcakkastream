@@ -17,9 +17,8 @@ object GrpcAkkaStreamGenerator {
   }
 }
 
-class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
-  extends protocbridge.ProtocCodeGenerator
-  with DescriptorPimps {
+class GrpcAkkaStreamGenerator(params: GeneratorParams)
+  extends protocbridge.ProtocCodeGenerator {
 
   override def run(requestBytes: Array[Byte]): Array[Byte] = {
     // Read scalapb.options (if present) in .proto files
@@ -36,15 +35,19 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
           acc + (fp.getName -> FileDescriptor.buildFrom(fp, deps.toArray))
       }
 
+    val impl = new GeneratorImpl(params, fileDescByName.values.toSeq)
+
     request.getFileToGenerateList.asScala.foreach {
       name =>
         val fileDesc = fileDescByName(name)
-        val responseFiles = generateFiles(fileDesc)
+        val responseFiles = impl.generateFiles(fileDesc)
         b.addAllFile(responseFiles.asJava)
     }
     b.build.toByteArray
   }
+}
 
+class GeneratorImpl(params: GeneratorParams, files: Seq[FileDescriptor]) extends DescriptorImplicits(params, files) {
   def generateFiles(fileDesc: FileDescriptor): Seq[CodeGeneratorResponse.File] = {
     fileDesc.getServices.asScala.map { service =>
       val b = CodeGeneratorResponse.File.newBuilder()
@@ -59,7 +62,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
           "import _root_.akka.stream.Materializer",
           "import _root_.akka.stream.scaladsl.Flow",
           "import _root_.com.google.protobuf.Descriptors.ServiceDescriptor",
-          "import _root_.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Grpc, Marshaller, ServiceCompanion }",
+          "import _root_.scalapb.grpc.{ AbstractService, ConcreteProtoFileDescriptorSupplier, Marshaller, ServiceCompanion }",
           "import _root_.grpc.akkastreams._",
           "import _root_.io.grpc.{ CallOptions, Channel, MethodDescriptor, ServerServiceDefinition }",
           "import _root_.io.grpc.stub.AbstractStub"
@@ -101,14 +104,14 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
       case StreamType.Bidirectional => "BIDI_STREAMING"
     }
     printer
-      .add(s"val ${method.descriptorName}: MethodDescriptor[${method.scalaIn}, ${method.scalaOut}] =")
+      .add(s"val ${method.descriptorName}: MethodDescriptor[${method.inputType.scalaType}, ${method.outputType.scalaType}] =")
       .indent
       .add("MethodDescriptor.newBuilder()")
       .addIndented(
         s".setType(MethodDescriptor.MethodType.$methodType)",
         s""".setFullMethodName(MethodDescriptor.generateFullMethodName("${method.getService.getFullName}", "${method.getName}"))""",
-        s".setRequestMarshaller(new Marshaller(${method.scalaIn}))",
-        s".setResponseMarshaller(new Marshaller(${method.scalaOut}))",
+        s".setRequestMarshaller(new Marshaller(${method.inputType.scalaType}))",
+        s".setResponseMarshaller(new Marshaller(${method.outputType.scalaType}))",
         ".build()"
       )
       .outdent
@@ -142,7 +145,7 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
   }
 
   private def serviceMethodSignature(method: MethodDescriptor): String =
-    s"def ${methodName(method)}: Flow[${method.scalaIn}, ${method.scalaOut}, NotUsed]"
+    s"def ${methodName(method)}: Flow[${method.inputType.scalaType}, ${method.outputType.scalaType}, NotUsed]"
 
   private def serviceTraitCompanion(service: ServiceDescriptor, fileDesc: FileDescriptor): PrinterEndo = _
       .add(s"object ${service.getName} extends ServiceCompanion[${service.getName}] {")
@@ -174,28 +177,28 @@ class GrpcAkkaStreamGenerator(override val params: GeneratorParams)
       case Unary => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"GrpcAkkaStreamsClientCalls.unaryFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .add(s"GrpcAkkaStreamsClientCalls.unaryFlow[${method.inputType.scalaType}, ${method.outputType.scalaType}](")
         .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
         .outdent
       case ServerStreaming => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"GrpcAkkaStreamsClientCalls.serverStreamingFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .add(s"GrpcAkkaStreamsClientCalls.serverStreamingFlow[${method.inputType.scalaType}, ${method.outputType.scalaType}](")
         .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
         .outdent
       case ClientStreaming => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"GrpcAkkaStreamsClientCalls.clientStreamingFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .add(s"GrpcAkkaStreamsClientCalls.clientStreamingFlow[${method.inputType.scalaType}, ${method.outputType.scalaType}](")
         .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
         .outdent
       case Bidirectional => printer
         .add(s"override ${serviceMethodSignature(method)} =")
         .indent
-        .add(s"GrpcAkkaStreamsClientCalls.bidiStreamingFlow[${method.scalaIn}, ${method.scalaOut}](")
+        .add(s"GrpcAkkaStreamsClientCalls.bidiStreamingFlow[${method.inputType.scalaType}, ${method.outputType.scalaType}](")
         .addIndented(s"channel.newCall(${method.descriptorName}, options)")
         .add(")")
         .outdent

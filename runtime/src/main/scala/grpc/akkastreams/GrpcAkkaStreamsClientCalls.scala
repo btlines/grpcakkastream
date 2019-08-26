@@ -4,9 +4,9 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import akka.NotUsed
 import akka.stream.scaladsl.{Flow, Source}
-import com.trueaccord.scalapb.grpc.Grpc
 import io.grpc.{ClientCall, Metadata, Status}
 import io.grpc.stub._
+import scalapb.grpc.Grpc
 
 object GrpcAkkaStreamsClientCalls {
 
